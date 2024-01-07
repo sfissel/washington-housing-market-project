@@ -1,0 +1,533 @@
+---
+title: "**Project 2 R Script**"
+author: "Group 1: Arnav Boppudi, Stephanie Fissel, Jacqui Unciano, Ian Yung"
+date: "July 14, 2023"
+output: 
+    html_document:
+        toc: true
+        toc_depth: 3
+        toc_float: true
+        theme: yeti
+        code_folding: show
+---
+
+## **SECTION 2: Data Description & Visualizations**
+
+### **WORKSPACE PREP**
+
+#### Load packages
+
+```{r, echo=FALSE}
+library(rmarkdown)
+library(knitr)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+library(MASS)
+library(grid)
+```
+#### Read in data
+* <span style="color:#3a5a40"><font size="5">**`kc_house_data.csv`**</font></span>
+```{r}
+data <- read.csv("kc_house_data.csv", header = TRUE)
+head(data)
+```
+
+#### Creating Factor Levels for Categorical Variables
+```{r}
+data$view = factor(data$view)
+data$waterfront = factor(data$waterfront)
+#data$grade = factor(data$grade)
+data$floors = factor(data$floors)
+unique(data$zipcode)
+
+## regrouped grade levels
+data = data %>%
+  mutate(grade_group = ifelse(grade %in% list("1", "2", "3"), "poor",
+                              ifelse(grade %in% list("4", "5", "6"), "mod_poor",
+                                     ifelse(grade %in% list("7", "8", "9", "10"), "average", "high"))))
+
+data$grade_group = factor(data$grade_group, 
+                           c("poor", "mod_poor", "average", "high"))
+
+data <- data %>% 
+  mutate(wealthy=ifelse(zipcode %in% c(98072, 98027, 98119, 98029, 98052, 98005, 98177, 98065, 98105, 98199, 98006, 98121, 98053, 98074, 98033, 98075, 98112, 98004, 98040, 98039), TRUE, FALSE))
+```
+
+### Split into Training and Testing Sets
+
+```{r}
+## Linear Regression:
+# split the data
+set.seed(6021) ##for reproducibility to get the same split
+sample<-sample.int(nrow(data), floor(.50*nrow(data)), replace = F)
+training<-data[sample, ] ##training data frame
+test<-data[-sample, ] ##test data frame
+
+
+## Logistic Regression:
+finmod = data %>%
+  dplyr::select(bedrooms, bathrooms, sqft_living, sqft_lot, floors, condition, 
+                grade_group, sqft_living15, sqft_lot15, wealthy)
+
+finmod = finmod[complete.cases(finmod[ , 10]),]
+
+## 80-20 split
+set.seed(6021)
+samp = sample.int(nrow(finmod), floor(.80*nrow(finmod)), replace = F)
+train = finmod[samp, ]
+test = finmod[-samp, ]
+
+```
+
+## **SECTION 4: Linear Regression Data Visualizations**
+
+```{r}
+ggplot(data, aes(as.factor(bathrooms), y=log(price))) +
+    geom_boxplot(fill='#a3b18a', color='#344e41') + 
+    labs(x="Number of Bathrooms", y="Log(Price)", title="Price Distribution by Number of Bathrooms") + 
+  theme_bw() +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+```{r}
+ggplot(data, aes(x = sqft_living, y = price/1000000, fill = factor(bedrooms))) +
+  geom_point(alpha = 0.4, shape=21, color="black") +
+  scale_size_continuous(range = c(1,5)) +
+  labs(x = "Square Footage", y = "Price in Millions (USD)", fill = "Bedrooms") +
+  theme_minimal() +
+  facet_wrap(~floors) +
+  ggtitle("Price vs. Sq. Ft., & Bedrooms \nby Floors") +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+
+```{r}
+ggplot(data=data)+
+  geom_point(aes(x=sqft_living, y=price),
+             color="#344e41",
+             alpha=0.5)+
+  theme_bw() +
+  labs(title="Sq. Ft. Living vs. Price") +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+
+```{r}
+ggplot(data, aes(x=interaction(waterfront, lex.order=T), y=log(price))) +
+    geom_boxplot(fill='#a3b18a', color='#344e41') + 
+    theme_bw() +
+    theme(plot.title = element_text(hjust=0.5)) +
+    labs(x="Waterfront", y="Log(Price)", title="Price Distribution by Waterfront Location")
+```
+
+
+```{r}
+ggplot(data=data)+
+  geom_density(aes(x=log(price), fill=view),
+               alpha=0.5, fill="#a3b18a", color="#344e41")+
+  facet_wrap(~view, nrow = 1)+
+  theme_bw()+
+  guides(fill=FALSE) +
+  labs(title="Distribution of Price by View") +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+
+```{r}
+ggplot(data=data)+
+  geom_boxplot(aes(x=as.factor(grade), y=log(price)),
+               alpha=0.5,
+               fill=c("#e06666", "#ffd966", "#93c47d", "#76a5af", "#8e7cc3", 
+                      "#a64d79", "#0f2b3c", "#ce7e00", "#660000", "#274e13",
+                      "#19cea6", "#6005ac")) +
+  theme_bw() +
+  labs(title="Price Distribution by Grade Level") +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+
+```{r}
+ggplot(data=data, aes(x=factor(floors), y=log(price)))+
+  geom_boxplot(fill="#a3b18a", color="#344e41")+
+  theme_bw()+
+  labs(x="Num. of Floors", y="log(Price)", title="Price v. Num. of Floors") +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+
+```{r}
+v1_3 = ggplot(data=data)+
+  geom_point(aes(x=sqft_living, y=log(price)),
+             color="#588157",
+             alpha=0.5)+
+  theme_bw()
+data$sqft_living_log = log(data$sqft_living)
+v1_4 = ggplot(data=data)+
+  geom_point(aes(x=sqft_living_log, y=log(price)),
+             color="#588157",
+             alpha=0.5)+
+  theme_bw()
+gridExtra::grid.arrange(v1_3,v1_4, nrow=1, top=textGrob("Log Transformation of Sq. Ft. Living \n(Before & After)"))
+```
+
+
+```{r}
+data <- data %>%
+  mutate(decade = if_else(yr_built >= 2000,
+                          paste0(yr_built  %/% 10 * 10, "'s"),
+                          paste0((yr_built - 1900) %/% 10 * 10, "'s")))
+
+data %>% 
+  mutate(decade=fct_relevel(decade,
+                             "10's", "20's", "30's", "40's", "50's", "60's", 
+                             "70's", "80's", "90's", "0's", "2010's")) %>% 
+ggplot(aes(as.factor(decade), y=log(price))) +
+  geom_boxplot(fill='#a3b18a', color='#344e41') + 
+  labs(x="Decade Built", y="log(Price)", title = "Price Distribution by Decade Built") + 
+  theme_bw()
+```
+
+
+```{r}
+data <- data %>%
+  mutate(decade1 = if_else(yr_renovated >= 2000,
+                          paste0(yr_renovated  %/% 10 * 10, "'s"),
+                          paste0((yr_renovated - 1900) %/% 10 * 10, "'s")))
+
+data %>% 
+  mutate(decade1=fct_relevel(decade1,
+                             "10's", "20's", "30's", "40's", "50's", "60's", 
+                             "70's", "80's", "90's", "0's", "2010's")) %>% 
+ggplot(aes(as.factor(decade1), y=log(price))) +
+  geom_boxplot(fill='#a3b18a', color='#344e41') + 
+  labs(x="Decade Renovated", y="Log(Price)", title = "Price Distribution by Decade Renovated") +
+  theme_bw()
+```
+
+```{r}
+g1 <- ggplot(data=data, aes(x=sqft_lot, y=log(price)))+
+  geom_point(color="#344e41")+
+  geom_smooth(method='lm', se=FALSE, color="#a3b18a")+
+  theme_bw() +
+  labs(x="Sq. Ft. Lot", y="log(Price)", title="Price per Sq. Ft. of Lot")
+```
+
+```{r}
+g2 <- ggplot(data=data, aes(x=sqft_living15, y=log(price)))+
+  geom_point(color="#344e41")+
+  geom_smooth(method='lm', se=FALSE, color="#a3b18a")+
+  theme_bw()+
+  labs(x="Sq. Ft. Living of 15 Neighbors", y="log(Price)", title="Price per Sq. Ft. of 15 Neighbors")
+```
+
+```{r}
+g3 <- ggplot(data=data, aes(x=sqft_lot15, y=log(price)))+
+  geom_point(color="#344e41")+
+  geom_smooth(method='lm', se=FALSE, color="#a3b18a")+
+  theme_bw()+
+  labs(x="Sq. Ft. Lot of 15 Neighbors", y="log(Price)", title="Price per Sq. Ft. of Lot of 15 Neighbors")
+```
+
+```{r}
+g4 <- ggplot(data=data, aes(x=log(price), color=floors))+
+  geom_density()+
+  theme_bw()+
+  labs(x="log(Price)", y="Density", title="Num. of Floors by Price") + 
+  scale_color_manual(values = c("#dad7cd", "#a3b18a", "#588157", "#3a5a40", "#344e41", "#152219"))
+
+gridExtra::grid.arrange(g1, g2, g3, g4, ncol=2, nrow=2)
+```
+
+## **SECTION 5: Linear Regression Model**
+
+```{r}
+# Fitting the model
+model <- lm(price ~ sqft_living +sqft_lot + bedrooms + as.numeric(floors) + bathrooms, data = training)
+
+# Summarize the model to get the coefficients and other details
+summary(model)
+```
+
+```{r}
+# Fitting the model
+model <- lm(price ~ sqft_living + sqft_lot + bedrooms + bathrooms, data = training)
+
+# Summarize the model to get the coefficients and other details
+summary(model)
+```
+
+```{r}
+# Fitting the model
+model <- lm(price ~ sqft_living + sqft_lot+bedrooms + grade + bathrooms, data = training)
+
+# Summarize the model to get the coefficients and other details
+summary(model)
+```
+
+```{r, echo=FALSE}
+
+hii<-lm.influence(model)$hat ##leverages
+ext.student<-rstudent(model) ##ext studentized res
+n<-nrow(data)
+p<-5
+
+## ext.student[abs(ext.student)>3]
+head(sort(abs(ext.student), decreasing = TRUE), 10)
+```
+
+
+```{r, echo=FALSE}
+data.no_out <- data
+data.no_out <- data.no_out[-7253,]
+data.no_out <- data.no_out[-3915,]
+data.no_out <- data.no_out[-9255,]
+data.no_out <- data.no_out[-1316,]
+data.no_out <- data.no_out[-1449,]
+
+# Fitting the model
+model <- lm(price ~ sqft_living + sqft_lot + bedrooms + grade + bathrooms, data = data.no_out)
+
+# Summarize the model to get the coefficients and other details
+summary(model)
+```
+
+
+```{r}
+# VIF code
+library(car)
+vif(model)
+```
+
+
+```{r}
+par(mfrow=c(2,2))
+plot(model)
+```
+
+
+```{r}
+MASS::boxcox(model, lambda = seq(-.1, .1, 1/10))
+```
+
+
+```{r}
+price.star <- log(training$price)
+training <- data.frame(training, price.star)
+
+# Fitting the model
+model <- lm(price.star ~ sqft_living + sqft_lot+bedrooms + grade + bathrooms, data = training)
+
+# Summarize the model to get the coefficients and other details
+summary(model)
+
+par(mfrow=c(2,2))
+plot(model)
+```
+
+## **SECTION 6: Logistic Regression Data Visualizations**
+
+```{r}
+
+vlog1 = ggplot(train)+
+  geom_bar(aes(x=as.factor(bedrooms), fill=wealthy),
+           position="fill")+
+  theme_bw()+
+  labs(title="Proportion of Houses within Zipcode Category",
+       subtitle = "by Number of Bedrooms",
+       x="Number of Bedrooms",
+       y="Proportion",
+       caption="Figure 6.1",
+       fill="Zipcode Category")+
+  scale_fill_manual(labels=c('Non-Wealthy \nZipcode', 'Wealthy Zipcode'),
+                    values=c("#a3b18a","#344e41"))+
+  theme(plot.caption = element_text(hjust = 0, size=8, face="bold"),
+        plot.title = element_text(hjust = 0.5, size=10),
+        plot.subtitle = element_text(hjust = 0.5, size=8))
+
+vlog2 = ggplot(train)+
+  geom_bar(aes(x=as.factor(bathrooms), fill=wealthy),
+           position="fill")+
+  theme_bw()+
+  labs(title="Proportion of Houses within Zipcode Category",
+       subtitle = "by Number of Bathrooms",
+       x="Number of Bathrooms",
+       y="Proportion",
+       caption="Figure 6.2")+
+  guides(fill="none")+
+  scale_fill_manual(values=c("#a3b18a","#344e41"))+
+  theme(plot.caption = element_text(hjust = 0, size=8, face="bold"),
+        plot.title = element_text(hjust = 0.5, size=10),
+        plot.subtitle = element_text(hjust = 0.5, size=8))
+
+gridExtra::grid.arrange(vlog1,vlog2, ncol=1, nrow=2)
+```
+
+```{r}
+vlog3 = ggplot(train)+
+  geom_density(aes(x=log(sqft_living), fill=wealthy), alpha=0.5)+
+  theme_bw()+
+  labs(title="Relationship Between The Area of \nthe House within Zipcode Category",
+       x="Log of Square-ft Living Space",
+       y="Density",
+       caption="Figure 6.3")+
+  guides(fill="none")+
+  scale_fill_manual(values=c("#a3b18a","#344e41"))+
+  theme(plot.caption = element_text(hjust = 0, size=8, face="bold"),
+        plot.title = element_text(hjust = 0.5, size=8))
+
+vlog4 = ggplot(train)+
+  geom_density(aes(x=log(sqft_lot), fill=wealthy), alpha=0.5)+
+  theme_bw()+
+  labs(title="Relationship Between The Area of \nthe Property within Zipcode Category",
+       x="Log of Square-ft Property",
+       y="Density",
+       caption="Figure 6.4",
+       fill="Zipcode Category")+
+  scale_fill_manual(labels=c('Non-Wealthy \nZipcode', 'Wealthy Zipcode'),
+                    values=c("#a3b18a","#344e41"))+
+  theme(plot.caption = element_text(hjust = 0, size=8, face="bold"),
+        plot.title = element_text(hjust = 0.5, size=8))
+
+vlog6 = ggplot(train)+
+  geom_bar(aes(x=as.factor(grade_group), fill=wealthy),
+           position="fill")+
+  theme_bw()+
+  labs(title="Proportion of Houses within Zipcode Category",
+       subtitle = "by Grade Level",
+       x="Grade Level",
+       y="Proportion",
+       caption="Figure 6.7")+
+  guides(fill="none")+
+  scale_fill_manual(values=c("#a3b18a","#344e41"))+
+  theme(plot.caption = element_text(hjust = 0, size=8, face="bold"),
+        plot.title = element_text(hjust = 0.5, size=10),
+        plot.subtitle = element_text(hjust = 0.5, size=8))
+
+vlog9 = ggplot(train)+
+  geom_bar(aes(x=as.factor(floors), fill=wealthy),
+           position="fill")+
+  theme_bw()+
+  labs(title="Proportion of Houses within Zipcode Catoegory",
+       subtitle = "by Number of Floors",
+       x="Number of Floors",
+       y="Proportion",
+       caption="Figure 6.5")+
+  guides(fill="none")+
+  scale_fill_manual(values=c("#a3b18a","#344e41"))+
+  theme(plot.caption = element_text(hjust = 0, size=8, face="bold"),
+        plot.title = element_text(hjust = 0.5, size=10),
+        plot.subtitle = element_text(hjust = 0.5, size=8))
+
+vlog5 = ggplot(train)+
+  geom_bar(aes(x=as.factor(condition), fill=wealthy),
+           position="fill")+
+  theme_bw()+
+  labs(title="Proportion of Houses within Zipcode Category",
+       subtitle = "by Condition Level",
+       x="Condition Level",
+       y="Proportion",
+       caption="Figure 6.6")+
+  guides(fill="none")+
+  scale_fill_manual(values=c("#a3b18a","#344e41"))+
+  theme(plot.caption = element_text(hjust = 0, size=8, face="bold"),
+        plot.title = element_text(hjust = 0.5, size=10),
+        plot.subtitle = element_text(hjust = 0.5, size=8))
+
+gridExtra::grid.arrange(vlog3,vlog4,vlog9,vlog5, ncol=2, nrow=2)
+```
+
+```{r}
+vlog6 = ggplot(train)+
+  geom_bar(aes(x=as.factor(grade_group), fill=wealthy),
+           position="fill")+
+  theme_bw()+
+  labs(title="Proportion of Houses within Zipcode Catoegory",
+       subtitle = "by Grade Level",
+       x="Grade Level",
+       y="Proportion",
+       caption="Figure 6.7")+
+  guides(fill="none")+
+  scale_fill_manual(values=c("#a3b18a","#344e41"))+
+  theme(plot.caption = element_text(hjust = 0, size=8, face="bold"),
+        plot.title = element_text(hjust = 0.5, size=10),
+        plot.subtitle = element_text(hjust = 0.5, size=8))
+
+vlog7 = ggplot(train)+
+  geom_density(aes(x=log(sqft_living15), fill=wealthy), alpha=0.5)+
+  theme_bw()+
+  labs(title="Relationship Between The Area of the 15 \nNearest Neighboring Houses within Zipcode Catoegory",
+       x="Log of Square-ft Living Space",
+       y="Density",
+       caption="Figure 6.8",
+       fill="Zipcode Category")+
+  scale_fill_manual(labels=c('Non-Wealthy \nZipcode', 'Wealthy Zipcode'),
+                    values=c("#a3b18a","#344e41"))+
+  theme(plot.caption = element_text(hjust = 0, size=8, face="bold"),
+        plot.title = element_text(hjust = 0.5, size=8))
+
+vlog8 = ggplot(train)+
+  geom_density(aes(x=log(sqft_lot15), fill=wealthy), alpha=0.5)+
+  theme_bw()+
+  labs(title="Relationship Between The Area of the 15 \nNearest Neighboring Properties within Zipcode Catoegory",
+       x="Log of Square-ft Property",
+       y="Density",
+       caption="Figure 6.9")+
+  guides(fill="none")+
+  scale_fill_manual(values=c("#a3b18a","#344e41"))+
+  theme(plot.caption = element_text(hjust = 0, size=8, face="bold"),
+        plot.title = element_text(hjust = 0.5, size=8))
+
+gridExtra::grid.arrange(vlog6,vlog7,vlog8, ncol=2, nrow=2)
+```
+
+## **SECTION 7: Logistic Regression Model**
+
+### **Model 7.1**
+```{r}
+noprice = glm(wealthy~., family="binomial", data=train)
+summary(noprice)
+```
+
+### **Model 7.2**
+```{r}
+## testing beta(sqft_lot, condition, sqft_lot15)
+eda = glm(wealthy~bedrooms+bathrooms+sqft_living+grade_group+floors+
+            sqft_living15,
+          family="binomial", data=train)
+gstat4 = noprice$deviance-eda$deviance
+1-pchisq(gstat4, 6)
+## pval: 1 ==> we can drop betas
+
+summary(eda)
+```
+
+### **Model 7.3**
+```{r}
+## testing beta(floor, condition, grade)
+cate = glm(wealthy~bedrooms+bathrooms+sqft_living+sqft_lot+
+             sqft_living15+sqft_lot15,
+           family="binomial", data=train)
+gstat5 = noprice$deviance-cate$deviance
+1-pchisq(gstat5, 12)
+## pval: 1 ==> we can drop betas
+
+summary(cate)
+```
+
+```{r}
+## testing model with ROC and AUC
+p_cate=predict(cate, newdata=test, type="response")
+r_cate=ROCR::prediction(p_cate, test$wealthy)
+roc_cate=ROCR::performance(r_cate, measure="tpr", x.measure="fpr")
+plot(roc_cate, main="ROC Curve for Reduced Model",
+     sub="Figure 7.1", font.sub =2)
+lines(x = c(0,1), y = c(0,1), col="red")
+```
+
+### **Table 7.1**
+```{r}
+cmatrix = table(test$wealthy, p_cate>0.5)
+cmatrix
+```
