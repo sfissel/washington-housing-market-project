@@ -1,0 +1,762 @@
+---
+title: "**Project 2 Report**"
+author: "Group 1: Arnav Boppudi, Stephanie Fissel, Jacqui Unciano, Ian Yung"
+date: "July 14, 2023"
+output: 
+    html_document:
+        toc: true
+        toc_depth: 3
+        toc_float: true
+        theme: yeti
+        #code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+```
+
+
+## **SECTION 1: Summary of Findings**
+
+Our team set out to explore two key questions related to the housing market between May 2014 and May 2015 in King County, Washington. The first question using a linear regression: Can we predict a house's selling price based on its size? The second question using a logistic regression: Can we predict if a house falls within one of the region's ["20 Wealthiest Zip Codes"](https://www.seattlepi.com/local/seattlenews/article/These-are-the-20-wealthiest-ZIP-codes-in-King-12561838.php) using data on its size, condition, and the size of neighboring homes? 
+
+The results of the first question's linear regression model found that the size of a house, measured in terms of square footage, number of bedrooms, and number of bathrooms, does indeed play an important role in predicting the selling price. The variables, in our study, together explained half of the variation in house prices. Interestingly, an increase in the number of bedrooms does not always result in an increase in price - in fact, our model with regards to bedrooms found that, with all other factors remaining constant, more bedrooms correlates with a lower price. The houses with up to five bedrooms, generally, have higher prices -- while the houses with more than five bedrooms saw a decrease in price. We found that this may be due to a limited segment of buyers entering the market for homes with a high number of bedrooms, decreasing demand as well as price. An unexpected result found the lack of significance of the number of floors in a house. This did not substantially improve accuracy of our model's price prediction. This may suggest that this may not be an important consideration for home buyers considering a home's value.  Our analysis also found that a house’s grade, an indicator of the construction quality, is a crucial determinant in its selling price. 
+
+The results for the second question sought to predict whether a house falls within a “wealthy” zip code – with an average homeowner income of $120,000. Using data on the house’s size, condition, and the size of the neighboring houses, we developed a model to address this question. Our results found that the condition of a house does not significantly influence whether the house is located in a wealthier zip code. However, the size of the house and the size of the neighboring houses do indeed give insight into the wealth level of the zip code the house resides in. Larger houses and neighborhoods with larger houses tend to be in wealthier zip codes. Our current research provides adequate predictions on whether a house is likely to be in a wealthier zip code, with room for improvement. Other factors may affect what type of houses reside in zip codes of different wealth classifications. These factors might include whether the house is located in a rural or urban area. This could also involve examining how various aspects interact with each other or how a steady growth in one specific aspect might influence the prosperity of a zip code area. In essence, our research aims to provide better understanding as to which factors can help predict whether a house is in a wealthier zip code or not.
+
+## **SECTION 2: Data Description & Visualizations**
+
+### **WORKSPACE PREP**
+* Data source: [**<span style="color:#3a5a40">King County, Washington House Sale Prices</span>**](https://www.kaggle.com/datasets/harlfoxem/housesalesprediction)
+
+#### Load packages
+
+```{r, echo=FALSE}
+library(rmarkdown)
+library(knitr)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+library(MASS)
+library(grid)
+```
+#### Read in data
+* <span style="color:#3a5a40"><font size="5">**`kc_house_data.csv`**</font></span>
+```{r}
+data <- read.csv("kc_house_data.csv", header = TRUE)
+```
+
+```{r, results='hide'}
+data$view = factor(data$view)
+data$waterfront = factor(data$waterfront)
+#data$grade = factor(data$grade)
+data$floors = factor(data$floors)
+unique(data$zipcode)
+
+## regrouped grade levels
+data = data %>%
+  mutate(grade_group = ifelse(grade %in% list("1", "2", "3"), "poor",
+                              ifelse(grade %in% list("4", "5", "6"), "mod_poor",
+                                     ifelse(grade %in% list("7", "8", "9", "10"), "average", "high"))))
+
+data$grade_group = factor(data$grade_group, 
+                           c("poor", "mod_poor", "average", "high"))
+
+data <- data %>% 
+  mutate(wealthy=ifelse(zipcode %in% c(98072, 98027, 98119, 98029, 98052, 98005, 98177, 98065, 98105, 98199, 98006, 98121, 98053, 98074, 98033, 98075, 98112, 98004, 98040, 98039), TRUE, FALSE))
+```
+
+
+```{r}
+## Linear Regression:
+# split the data
+set.seed(6021) ##for reproducibility to get the same split
+sample<-sample.int(nrow(data), floor(.50*nrow(data)), replace = F)
+training<-data[sample, ] ##training data frame
+test<-data[-sample, ] ##test data frame
+
+
+## Logistic Regression:
+finmod = data %>%
+  dplyr::select(bedrooms, bathrooms, sqft_living, sqft_lot, floors, condition, 
+                grade_group, sqft_living15, sqft_lot15, wealthy)
+
+finmod = finmod[complete.cases(finmod[ , 10]),]
+
+## 80-20 split
+set.seed(6021)
+samp = sample.int(nrow(finmod), floor(.80*nrow(finmod)), replace = F)
+train = finmod[samp, ]
+test = finmod[-samp, ]
+
+```
+
+### **DATASET**
+
+#### King County House Sale Prices
+
+A data set containing information about more than 21,600 different house sales for King County, Washington between May 2014 and May 2015 including: <span style="color:#3a5a40">**`price`**</span>, 
+<span style="color:#3a5a40">**`bedrooms`**</span>, 
+<span style="color:#3a5a40">**`bathrooms`**</span>, 
+<span style="color:#3a5a40">**`sqft_living`**</span>, 
+<span style="color:#3a5a40">**`sqft_lot`**</span>,
+<span style="color:#3a5a40">**`floors`**</span>,
+<span style="color:#3a5a40">**`waterfront`**</span>,
+<span style="color:#3a5a40">**`view`**</span>,
+<span style="color:#3a5a40">**`condition`**</span>,
+<span style="color:#3a5a40">**`grade`**</span>,
+<span style="color:#3a5a40">**`sqft_above`**</span>,
+<span style="color:#3a5a40">**`sqft_basement`**</span>,
+<span style="color:#3a5a40">**`yr_built`**</span>,
+<span style="color:#3a5a40">**`yr_renovated`**</span>,
+<span style="color:#3a5a40">**`zip_code`**</span>,
+<span style="color:#3a5a40">**`sqft_living15`**</span>,
+<span style="color:#3a5a40">**`sqft_lot15`**</span>
+
+### **VARIABLES**
+
+- <span style="color:#3a5a40"><font size="5">**`price`**</font></span> Price of each home sold.
+
+- <span style="color:#3a5a40"><font size="5">**`bedrooms`**</font></span> Number of bedrooms.
+
+- <span style="color:#3a5a40"><font size="5">**`bathrooms`**</font></span> Number of bathrooms, where 0.5 accounts for a room with a toilet but no shower.
+
+- <span style="color:#3a5a40"><font size="5">**`sqft_living`**</font></span> Square footage of the apartments interior living space.
+
+- <span style="color:#3a5a40"><font size="5">**`sqft_lot`**</font></span> Square footage of the land space.
+
+- <span style="color:#3a5a40"><font size="5">**`floors`**</font></span> Number of floors.
+
+- <span style="color:#3a5a40"><font size="5">**`waterfront`**</font></span> A dummy variable for whether the property was overlooking the waterfront or not.
+
+- <span style="color:#3a5a40"><font size="5">**`view`**</font></span>  An index from 0 to 4 of how good the view of the property was.
+
+- <span style="color:#3a5a40"><font size="5">**`condition`**</font></span> An index from 1 to 5 on the condition of the property.
+
+- <span style="color:#3a5a40"><font size="5">**`grade`**</font></span> An index from 1 to 13, where 1-3 falls short of building construction and design, 7 has an average level of construction and design, and 11-13 have a high quality level of construction and design.
+
+* We created another variable for <span style="color:#3a5a40"><font size="5">**`grade`**</font></span>, factoring the levels, called <span style="color:#3a5a40"><font size="5">**`grade_group`**</font></span>, which included level groupings: poor (1, 2, 3), moderately poor (4, 5, 6), average (7, 8, 9, 10), high (11, 12, 13).
+
+- <span style="color:#3a5a40"><font size="5">**`sqft_above`**</font></span> The square footage of the interior housing space that is above ground level.
+
+- <span style="color:#3a5a40"><font size="5">**`sqft_basement`**</font></span> The square footage of the interior housing space that is below ground level.
+
+- <span style="color:#3a5a40"><font size="5">**`yr_built`**</font></span> The year the house was initially built.
+
+- <span style="color:#3a5a40"><font size="5">**`yr_renovated`**</font></span> The year of the house’s last renovation.
+
+- <span style="color:#3a5a40"><font size="5">**`zip_code`**</font></span> What zip code area the house is in.
+
+* We created another variable for <span style="color:#3a5a40"><font size="5">**`zip_code`**</font></span> called <span style="color:#3a5a40"><font size="5">**`wealthy`**</font></span>, grouping the zip codes based on whether they are considered one of the "20 Wealthiest Zip Codes" in King County or not. The 20 wealthiest zip codes are 98039, 98040, 98004, 98112, 98075, 98033, 98074, 98053, 98121, 98006, 98199, 98105, 98065, 98177, 98005, 98005, 98029, 98119, 98027, 98072.
+
+- <span style="color:#3a5a40"><font size="5">**`sqft_living15`**</font></span> The square footage of interior housing living space for the nearest 15 neighbors.
+
+- <span style="color:#3a5a40"><font size="5">**`sqft_lot15`**</font></span> The square footage of the land lots of the nearest 15 neighbors.
+
+## **SECTION 3: Questions of Interest**
+
+#### **Linear Regression Question of Interest:**
+
+1. Is house size (measured in terms of square footage, number of bedrooms, number of bathrooms, and floors) a good predictor of selling price for houses in King County, Washington between May 2014 and May 2015?
+
+* **Response variable:** <span style="color:#3a5a40"><font size="5">**`price`**</font></span>
+
+* **Motivation:** We want to know whether we can predict the selling price of a house based on particular sizing measures. If this is accurate, this can be used in the real world to determine whether a house is being valued appropriately and not overpriced. Individuals and families looking to buy a home could utilize this tool to gauge if the listed price of a property aligns with its size-related attributes.
+
+
+#### **Logistic Regression Question of Interest:**
+
+2. Can we predict if the house has a zip code considered one of the "20 Wealthiest Zip Codes" in King County (using size, condition, and size of neighboring houses)?
+
+* **Response variable:** <span style="color:#3a5a40"><font size="5">**`wealthy`**</font></span>
+
+* **Motivation:** We want to determine whether a house is in a wealthy zip code based on specific measures in order to determine if a house that is purchased is in a wealthier neighborhood as advertised. Also, if we are given information about a house, this allows us to narrow down where it may be located in Kings County by predicting if it is in a wealthier neighborhood or not.
+
+## **SECTION 4: Linear Regression Data Visualizations**
+
+This data is interesting because it appears that more bedrooms corresponds with greater price up until 5 bedrooms, afterwards the price of houses being unchanging (arguably even decreasing after 5 bedrooms). This suggests that bedrooms might be influential in determining price but other factors are probably more important.
+
+```{r, out.width="50%"}
+ggplot(data, aes(as.factor(bathrooms), y=log(price))) +
+    geom_boxplot(fill='#a3b18a', color='#344e41') + 
+    labs(x="Number of Bathrooms", y="Log(Price)", title="Price Distribution by Number of Bathrooms") + 
+  theme_bw() +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+From the boxplot above, the number of bathrooms appears to correlate strongly with price.
+
+```{r, out.width="50%"}
+ggplot(data, aes(x = sqft_living, y = price/1000000, fill = factor(bedrooms))) +
+  geom_point(alpha = 0.4, shape=21, color="black") +
+  scale_size_continuous(range = c(1,5)) +
+  labs(x = "Square Footage", y = "Price in Millions (USD)", fill = "Bedrooms") +
+  theme_minimal() +
+  facet_wrap(~floors) +
+  ggtitle("Price vs. Sq. Ft., & Bedrooms \nby Floors") +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+From the scatterplot above (broken down by the number of floors in a house), it appears that there is a strong positive correlation between the price and the square footage of the house and the bedrooms within that house. The larger the house in sq feet and the more bedrooms, usually results in a more expensive house. The color of the points corresponds to the number of bedrooms in the house. One must consider a few outliers on this scatterplot, specifically the 33 bedroom house on the 3.5 floors graph. 
+
+
+```{r, out.width="50%"}
+ggplot(data=data)+
+  geom_point(aes(x=sqft_living, y=price),
+             color="#344e41",
+             alpha=0.5)+
+  theme_bw() +
+  labs(title="Sq. Ft. Living vs. Price") +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+There appears to be an increase in price corresponding to an increase in square footage of living space. A linear regression will have to be performed to conclusively state this, but there are more data points at higher prices at higher amounts of square footage.
+
+```{r, out.width="50%"}
+ggplot(data, aes(x=interaction(waterfront, lex.order=T), y=log(price))) +
+    geom_boxplot(fill='#a3b18a', color='#344e41') + 
+    theme_bw() +
+    theme(plot.title = element_text(hjust=0.5)) +
+    labs(x="Waterfront", y="Log(Price)", title="Price Distribution by Waterfront Location")
+```
+
+It appears that properties on a waterfront cost more than properties without a waterfront. However, just because a property is not a waterfront property does not mean that it cannot be as expensive as other waterfront houses.
+
+```{r, out.width="50%"}
+ggplot(data=data)+
+  geom_density(aes(x=log(price), fill=view),
+               alpha=0.5, fill="#a3b18a", color="#344e41")+
+  facet_wrap(~view, nrow = 1)+
+  theme_bw()+
+  guides(fill=FALSE) +
+  labs(title="Distribution of Price by View") +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+Lesser views have more houses found at lower prices, and having a stellar view (a rating of 4) correlates with significantly higher house prices, but most of the density plots look similar and there doesn’t appear to be a huge difference between different views.
+
+```{r, out.width="50%"}
+ggplot(data=data)+
+  geom_boxplot(aes(x=as.factor(grade), y=log(price)),
+               alpha=0.5,
+               fill=c("#e06666", "#ffd966", "#93c47d", "#76a5af", "#8e7cc3", 
+                      "#a64d79", "#0f2b3c", "#ce7e00", "#660000", "#274e13",
+                      "#19cea6", "#6005ac")) +
+  theme_bw() +
+  labs(title="Price Distribution by Grade Level") +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+Grade has a clear relationship with increased price. It appears that house prices increase exponentially with better grades; the better the grade, the higher the increases in prices.
+
+```{r, out.width="50%"}
+ggplot(data=data, aes(x=factor(floors), y=log(price)))+
+  geom_boxplot(fill="#a3b18a", color="#344e41")+
+  theme_bw()+
+  labs(x="Num. of Floors", y="log(Price)", title="Price v. Num. of Floors") +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+It doesn’t appear that the number of floors has any significant effect on the price of the house.
+
+```{r}
+v1_3 = ggplot(data=data)+
+  geom_point(aes(x=sqft_living, y=log(price)),
+             color="#588157",
+             alpha=0.5)+
+  theme_bw()
+data$sqft_living_log = log(data$sqft_living)
+v1_4 = ggplot(data=data)+
+  geom_point(aes(x=sqft_living_log, y=log(price)),
+             color="#588157",
+             alpha=0.5)+
+  theme_bw()
+gridExtra::grid.arrange(v1_3,v1_4, nrow=1, top=textGrob("Log Transformation of Sq. Ft. Living \n(Before & After)"))
+```
+
+The BoxCox plot tells us how we should transform our dataset in order to fix the variance in the data. Since the value 0 is included in the 95% confidence interval of the BoxCox, we can perform a log-transformation on the y-variable in the above charts. After performing a log-transformation on the x-variable as well (to account for the nonlinear data), it appears clear that increases in square footage of living increases the price of the house.
+
+```{r, out.width="50%"}
+data <- data %>%
+  mutate(decade = if_else(yr_built >= 2000,
+                          paste0(yr_built  %/% 10 * 10, "'s"),
+                          paste0((yr_built - 1900) %/% 10 * 10, "'s")))
+
+data %>% 
+  mutate(decade=fct_relevel(decade,
+                             "10's", "20's", "30's", "40's", "50's", "60's", 
+                             "70's", "80's", "90's", "0's", "2010's")) %>% 
+ggplot(aes(as.factor(decade), y=log(price))) +
+  geom_boxplot(fill='#a3b18a', color='#344e41') + 
+  labs(x="Decade Built", y="log(Price)", title = "Price Distribution by Decade Built") + 
+  theme_bw()
+```
+
+It doesn’t appear that year built has any significant effect on the price.
+
+```{r, out.width="50%"}
+data <- data %>%
+  mutate(decade1 = if_else(yr_renovated >= 2000,
+                          paste0(yr_renovated  %/% 10 * 10, "'s"),
+                          paste0((yr_renovated - 1900) %/% 10 * 10, "'s")))
+
+data %>% 
+  mutate(decade1=fct_relevel(decade1,
+                             "10's", "20's", "30's", "40's", "50's", "60's", 
+                             "70's", "80's", "90's", "0's", "2010's")) %>% 
+ggplot(aes(as.factor(decade1), y=log(price))) +
+  geom_boxplot(fill='#a3b18a', color='#344e41') + 
+  labs(x="Decade Renovated", y="Log(Price)", title = "Price Distribution by Decade Renovated") +
+  theme_bw()
+```
+
+It appears that year renovated has a slight effect on the price as more newly renovated houses are selling at a higher price but the difference between decades may or may not be statistically significant.
+
+```{r}
+g1 <- ggplot(data=data, aes(x=sqft_lot, y=log(price)))+
+  geom_point(color="#344e41")+
+  geom_smooth(method='lm', se=FALSE, color="#a3b18a")+
+  theme_bw() +
+  labs(x="Sq. Ft. Lot", y="log(Price)", title="Price per Sq. Ft. of Lot")
+```
+
+```{r}
+g2 <- ggplot(data=data, aes(x=sqft_living15, y=log(price)))+
+  geom_point(color="#344e41")+
+  geom_smooth(method='lm', se=FALSE, color="#a3b18a")+
+  theme_bw()+
+  labs(x="Sq. Ft. Living of 15 Neighbors", y="log(Price)", title="Price per Sq. Ft. of 15 Neighbors")
+```
+
+```{r}
+g3 <- ggplot(data=data, aes(x=sqft_lot15, y=log(price)))+
+  geom_point(color="#344e41")+
+  geom_smooth(method='lm', se=FALSE, color="#a3b18a")+
+  theme_bw()+
+  labs(x="Sq. Ft. Lot of 15 Neighbors", y="log(Price)", title="Price per Sq. Ft. of Lot of 15 Neighbors")
+```
+
+```{r}
+g4 <- ggplot(data=data, aes(x=log(price), color=floors))+
+  geom_density()+
+  theme_bw()+
+  labs(x="log(Price)", y="Density", title="Num. of Floors by Price") + 
+  scale_color_manual(values = c("#dad7cd", "#a3b18a", "#588157", "#3a5a40", "#344e41", "#152219"))
+
+gridExtra::grid.arrange(g1, g2, g3, g4, ncol=2, nrow=2)
+```
+
+There appears to be somewhat of a relationship between square footage of lot and increased price; this holds true for both square footage of living and lot, as well as the square footage of living of the surrounding 15 neighbors. It’s important to note that all of these variables are highly correlated with each other - most houses in the same neighborhood will probably have very similar square footage of living and lot space.
+
+## **SECTION 5: Linear Regression Model**
+
+```{r}
+# Fitting the model
+model <- lm(price ~ sqft_living +sqft_lot + bedrooms + as.numeric(floors) + bathrooms, data = training)
+
+# Summarize the model to get the coefficients and other details
+summary(model)
+```
+
+The square root of the Mean Squared Error value (MSE) is $255748.1, a relatively large number.
+
+In summary, square footage, number of bedrooms, and number of bathrooms significantly predict house prices in King County, Washington, between May 2014 and May 2015, explaining about 50% of the variation in house price. However, the number of floors does not seem to be a significant predictor in the presence of the other predictors. The coefficient for the number of bedrooms is negative, which might be counterintuitive, suggesting that further investigation is needed to understand this effect.
+
+Since we found that ‘floor’ was not a useful variable, let’s try it without that predictor. Running the model without the variable ‘floor’:
+
+```{r}
+# Fitting the model
+model <- lm(price ~ sqft_living + sqft_lot + bedrooms + bathrooms, data = training)
+
+# Summarize the model to get the coefficients and other details
+summary(model)
+```
+
+This does not improve the Adjusted R-squared very much. We’ve made conclusions on how house size may correlate with house price, but what about other factors? Using our visualizations, we can see a clear relationship between house grade and house price. If we run another regression, we see that a higher grade corresponds to a higher price.
+
+The Adjusted R-squared value for the model including the 'grade' variable (seen below) is 0.5444, while this model, excluding the 'grade' variable, is 0.5048. This means that the model including the 'grade'  (house grade relating to construction quality) variable explains approximately 54.44% of the variability in the house prices, while the model excluding the 'grade' variable only explains about 50.48%. The 'grade' variable contributes to improving the model's ability to explain the variability in the house prices. Therefore, the inclusion of the 'grade' variable results in a higher Adjusted R-squared value, demonstrating that 'grade' is indeed a valuable predictor in estimating house prices and should be included in the model.
+
+```{r}
+# Fitting the model
+model <- lm(price ~ sqft_living + sqft_lot+bedrooms + grade + bathrooms, data = training)
+
+# Summarize the model to get the coefficients and other details
+summary(model)
+```
+
+We calculated the square root of the Mean Squared Error of this model to be $250,220.70. This is smaller than the model without ‘grade’, which supports our use of the model with ‘grade’.
+
+Let’s check for outliers in our data. Checking for externally studentized values, we find that many values are flagged. Here are the most flagged values:
+
+```{r, echo=FALSE}
+
+hii<-lm.influence(model)$hat ##leverages
+ext.student<-rstudent(model) ##ext studentized res
+n<-nrow(data)
+p<-5
+
+## ext.student[abs(ext.student)>3]
+head(sort(abs(ext.student), decreasing = TRUE), 10)
+```
+
+The top outliers flagged above all have very high grades, very large amounts of living space, and a large number of bedrooms and bathrooms. This is why they are flagged as outliers. It’s fair to leave these in the model, but just for testing’s sake, let’s remove the top five outliers. If we do this, running a regression again yields this result:
+
+```{r, echo=FALSE}
+data.no_out <- data
+data.no_out <- data.no_out[-7253,]
+data.no_out <- data.no_out[-3915,]
+data.no_out <- data.no_out[-9255,]
+data.no_out <- data.no_out[-1316,]
+data.no_out <- data.no_out[-1449,]
+
+# Fitting the model
+model <- lm(price ~ sqft_living + sqft_lot + bedrooms + grade + bathrooms, data = data.no_out)
+
+# Summarize the model to get the coefficients and other details
+summary(model)
+```
+
+The Adjusted R-Squared value improved by 0.0003, which is a slight improvement over the model with the outliers. This is not significant enough to warrant removing the data, so we can keep the outliers.
+Since an increase in 1 unit of grade corresponds with an increase in price of $99550, this suggests that grade has an extremely significant effect on the price of the house - even more so than factors corresponding to house size
+
+```{r}
+# VIF code
+library(car)
+vif(model)
+```
+
+From these values, we can conclude that multicollinearity isn't a significant issue in this model because all results are below these thresholds. This  means that the predictor variables in our model are not too highly correlated with each other. The 'sqft_living' variable has the highest VIF of all (3.904), suggesting it's the most correlated with the other variables. The more space one has in their house, the more bathrooms and bedrooms are more likely to be built.
+
+```{r}
+par(mfrow=c(2,2))
+plot(model)
+```
+
+From this, we can see that the variance is not constant throughout our dataset. We can fix this through a y-transformation (‘price’ being our response variable). Creating a boxcox plot, we get this:
+
+```{r}
+MASS::boxcox(model, lambda = seq(-.1, .1, 1/10))
+```
+
+From the boxcox, we know that we can perform a log transformation. After doing this, this is our results:
+
+```{r}
+price.star <- log(training$price)
+training <- data.frame(training, price.star)
+
+# Fitting the model
+model <- lm(price.star ~ sqft_living + sqft_lot+bedrooms + grade + bathrooms, data = training)
+
+# Summarize the model to get the coefficients and other details
+summary(model)
+
+par(mfrow=c(2,2))
+plot(model)
+```
+
+As one can interpret from the residual plot, this fixes the problem we were having earlier that assumption 2 was not being met. It is apparent now that the variance is constant throughout our model. 
+
+* **Residuals**: These are the differences between the observed and predicted values for your dependent variable. The summary statistics of the residuals can tell us about the fit of the model. Since the residual plot shows an even, flat spread of residuals, this means that all assumptions that linear regression models must meet are met.
+
+* **Coefficients**: The Estimate column gives you the estimated regression coefficients for the intercept and each of your predictor variables:
+
+* **(Intercept)**: The estimated intercept is 11.24. This means that $e^{11.24} = 76114.95$is the predicted value of price when all predictor variables are zero. In this context, the intercept has no practical interpretation since it's not meaningful to have zero square footage, bedrooms, floors, or bathrooms.
+
+* **Sqft_living**: For every one unit increase in square footage, the price is predicted to increase by a factor of $e^{0.0002327} = 1.00023$ times, assuming all other variables are held constant.
+
+* **Sqft_lot**: For every one unit increase in square footage, the price is predicted to decrease by a factor of $e^{0.0000001464} = 1.000000146$ times, assuming all other variables are held constant.
+
+* **Bedrooms**: For each additional bedroom, the price is predicted to decrease by a factor of $e^{0.02424 = 1.0245}$ times, assuming all other variables are held constant. This might be counterintuitive and could potentially suggest multicollinearity or other data issues.
+
+* **Bathrooms**: For each additional bathroom, the price is predicted to increase by a factor of $e^{0.007224 = 1.007}$ times, assuming all other variables are held constant.
+
+* **Significance codes**: The stars (or lack thereof) next to the coefficients correspond to the p-values for the hypothesis tests that each coefficient equals zero. Here, the coefficient for floors is not significantly different from zero at the common thresholds (0.05), suggesting that the number of floors might not be a significant predictor of price in the presence of the other predictors.
+
+* **Residual standard error**: This is the standard deviation of the residuals, which is a measure of the typical size of the residuals.
+
+* **Multiple R-squared**: This is the proportion of variance in the dependent variable that can be explained by the independent variables. In this case, about 55.42% of the variability in price can be explained by square footage, number of bedrooms, floors, and bathrooms.
+
+* **Adjusted R-squared**: This is the proportion of variance in the dependent variable that can be explained by the independent variables, but it penalizes you for including unnecessary predictors in your model. The fact that it is almost the same as the multiple R-squared suggests that all predictors contribute to the explanation of the variability in price.
+
+* **F-statistic and p-value**: These are the results of the hypothesis test that all of the regression coefficients are zero. A low p-value (here, essentially zero) provides strong evidence against the null hypothesis that all regression coefficients are zero. Since our p-value is nearly zero, this suggests that our regression is useful in predicting house price.
+
+Why is it that the bedroom is negative, the more bedrooms in a house, the less the house costs? Using the visualizations for the number of bedrooms we derived, it appears that the price increases up to five bedrooms, but decreases rapidly after this number. There are also cases of houses with many bedrooms but relatively mediocre prices. This may account for the negative coefficient with regards to the number of bedrooms - not many houses are practically going to have more than five bedrooms, and too many bedrooms may actually bring the price down. It’s also worth noting that this is a multivariable regression - the coefficient is used in the presence of other variables, and does not necessarily mean it is the individual effect of the predictor on the response.
+
+## **SECTION 6: Logistic Regression Data Visualizations**
+
+Our second question is, “can we predict if the house has a zip code  within one of the ‘20 Wealthiest Zip Codes’ in King County using the size of the house, condition of the house, and size of neighboring houses?” We took the variable in our dataset named `zipcode` and split it into two categories: 
+
+1. The house is located in a wealthy zip code (TRUE)
+
+2. The house is not located in a wealthy zip code (FALSE)
+
+The determination of whether or not a zip code was considered “wealthy” was taken from a [local news outlet in Seattle, Washington](https://www.seattlepi.com/local/seattlenews/article/These-are-the-20-wealthiest-ZIP-codes-in-King-12561838.php). They claim that their selection was taken from the United States Internal Revenue Service (IRS) and calculated using the average income of homeowners in each zip code. These 20 zip codes in King County have an average of more than $120,000 before deductions, according to the IRS.
+
+In order to answer the question, the following variables were used in the initial model:
+
+1. Number of bedrooms (`bedrooms`)
+
+2. Number of bathrooms (`bathrooms`)
+
+3. Square-ft living area (`sqft_living`)
+
+4. Square-ft property area (`sqft_lot`)
+
+5. Number of floors (`floors`)
+
+6. Condition level (`condition`)
+
+7. Grade level (`grade_group`)
+
+8. Square-ft living area for the 15 nearest houses (`sqft_living15`)
+
+9. Square-ft living area for the 15 nearest properties (`sqft_lot15`)
+
+
+Some visualizations were made in order to assess what can be expected when testing the logistic regression model. 
+
+```{r}
+
+vlog1 = ggplot(train)+
+  geom_bar(aes(x=as.factor(bedrooms), fill=wealthy),
+           position="fill")+
+  theme_bw()+
+  labs(title="Proportion of Houses within Zipcode Category",
+       subtitle = "by Number of Bedrooms",
+       x="Number of Bedrooms",
+       y="Proportion",
+       caption="Figure 6.1",
+       fill="Zipcode Category")+
+  scale_fill_manual(labels=c('Non-Wealthy \nZipcode', 'Wealthy Zipcode'),
+                    values=c("#a3b18a","#344e41"))+
+  theme(plot.caption = element_text(hjust = 0, size=8, face="bold"),
+        plot.title = element_text(hjust = 0.5, size=10),
+        plot.subtitle = element_text(hjust = 0.5, size=8))
+
+vlog2 = ggplot(train)+
+  geom_bar(aes(x=as.factor(bathrooms), fill=wealthy),
+           position="fill")+
+  theme_bw()+
+  labs(title="Proportion of Houses within Zipcode Category",
+       subtitle = "by Number of Bathrooms",
+       x="Number of Bathrooms",
+       y="Proportion",
+       caption="Figure 6.2")+
+  guides(fill="none")+
+  scale_fill_manual(values=c("#a3b18a","#344e41"))+
+  theme(plot.caption = element_text(hjust = 0, size=8, face="bold"),
+        plot.title = element_text(hjust = 0.5, size=10),
+        plot.subtitle = element_text(hjust = 0.5, size=8))
+
+gridExtra::grid.arrange(vlog1,vlog2, ncol=1, nrow=2)
+```
+
+**Figure 6.1** and **Figure 6.2** show the proportion of houses within the zip code category based on number of bedrooms and bathrooms (respectively). A general trend that can be seen in **Figure 6.1** is that the proportion of houses within wealthier zip codes increases as the number of bedrooms increase. The same trend can be observed in **Figure 6.2**. The proportion of houses within wealthier zip codes increases as the number of bathrooms increase. It is also noted that in **Figure 6.1**, there seems to be a possible outlier as a data point claims to have 33 bedrooms. This is suspected to be a typo or error of some sort. 
+
+```{r}
+vlog3 = ggplot(train)+
+  geom_density(aes(x=log(sqft_living), fill=wealthy), alpha=0.5)+
+  theme_bw()+
+  labs(title="Relationship Between The Area of \nthe House within Zipcode Category",
+       x="Log of Square-ft Living Space",
+       y="Density",
+       caption="Figure 6.3")+
+  guides(fill="none")+
+  scale_fill_manual(values=c("#a3b18a","#344e41"))+
+  theme(plot.caption = element_text(hjust = 0, size=8, face="bold"),
+        plot.title = element_text(hjust = 0.5, size=8))
+
+vlog4 = ggplot(train)+
+  geom_density(aes(x=log(sqft_lot), fill=wealthy), alpha=0.5)+
+  theme_bw()+
+  labs(title="Relationship Between The Area of \nthe Property within Zipcode Category",
+       x="Log of Square-ft Property",
+       y="Density",
+       caption="Figure 6.4",
+       fill="Zipcode Category")+
+  scale_fill_manual(labels=c('Non-Wealthy \nZipcode', 'Wealthy Zipcode'),
+                    values=c("#a3b18a","#344e41"))+
+  theme(plot.caption = element_text(hjust = 0, size=8, face="bold"),
+        plot.title = element_text(hjust = 0.5, size=8))
+
+vlog6 = ggplot(train)+
+  geom_bar(aes(x=as.factor(grade_group), fill=wealthy),
+           position="fill")+
+  theme_bw()+
+  labs(title="Proportion of Houses within Zipcode Category",
+       subtitle = "by Grade Level",
+       x="Grade Level",
+       y="Proportion",
+       caption="Figure 6.7")+
+  guides(fill="none")+
+  scale_fill_manual(values=c("#a3b18a","#344e41"))+
+  theme(plot.caption = element_text(hjust = 0, size=8, face="bold"),
+        plot.title = element_text(hjust = 0.5, size=10),
+        plot.subtitle = element_text(hjust = 0.5, size=8))
+
+vlog9 = ggplot(train)+
+  geom_bar(aes(x=as.factor(floors), fill=wealthy),
+           position="fill")+
+  theme_bw()+
+  labs(title="Proportion of Houses within Zipcode Catoegory",
+       subtitle = "by Number of Floors",
+       x="Number of Floors",
+       y="Proportion",
+       caption="Figure 6.5")+
+  guides(fill="none")+
+  scale_fill_manual(values=c("#a3b18a","#344e41"))+
+  theme(plot.caption = element_text(hjust = 0, size=8, face="bold"),
+        plot.title = element_text(hjust = 0.5, size=10),
+        plot.subtitle = element_text(hjust = 0.5, size=8))
+
+vlog5 = ggplot(train)+
+  geom_bar(aes(x=as.factor(condition), fill=wealthy),
+           position="fill")+
+  theme_bw()+
+  labs(title="Proportion of Houses within Zipcode Category",
+       subtitle = "by Condition Level",
+       x="Condition Level",
+       y="Proportion",
+       caption="Figure 6.6")+
+  guides(fill="none")+
+  scale_fill_manual(values=c("#a3b18a","#344e41"))+
+  theme(plot.caption = element_text(hjust = 0, size=8, face="bold"),
+        plot.title = element_text(hjust = 0.5, size=10),
+        plot.subtitle = element_text(hjust = 0.5, size=8))
+
+gridExtra::grid.arrange(vlog3,vlog4,vlog9,vlog5, ncol=2, nrow=2)
+```
+
+**Figure 6.3** and **Figure 6.4** are density plots for the area of the house and the area of the property between the two zip code categories. Figure 6.3 suggests a possible significant difference between the area of houses in wealthier zip codes and the area of houses in non-wealthier zip codes. Meanwhile, **Figure 6.4** doesn’t seem to show too much of a difference in density between the area of houses within each zip code category, suggesting that we may or may not be dropping this variable for the final model. 
+
+**Figure 6.5** is the proportion of houses in zip code category by how many floors the houses have. Surprisingly, the bar graph does not suggest a positive correlation between number of floors and proportion of houses in wealthier zip codes. Instead, it seems like the “golden spot” for the number of floors for houses in wealthier zip codes is around 2 floors. In the future, we may consider combining houses with 1 and 1.5 floors, 2 and 2.5 floors, and 3 and 3.5 floors together to make 3 categories within the number of floors variable which might give more insight on whether or not there’s a significant difference in the number of floors for houses in wealthier zip codes. 
+
+**Figure 6.6** is the proportion of houses in the zip code category based on the condition of the houses. The graphs show that there are more houses that are in poor condition (1 and 2) that are also within non-wealthier zip codes. However, it’s also noted that between fairly-good conditions and really-good conditions (3-5), there is not that much of a difference in proportion between these houses, suggesting that the condition level of the house may not be significant in predicting on whether or not that house resides in a wealthier zip code or not. 
+
+```{r}
+vlog6 = ggplot(train)+
+  geom_bar(aes(x=as.factor(grade_group), fill=wealthy),
+           position="fill")+
+  theme_bw()+
+  labs(title="Proportion of Houses within Zipcode Catoegory",
+       subtitle = "by Grade Level",
+       x="Grade Level",
+       y="Proportion",
+       caption="Figure 6.7")+
+  guides(fill="none")+
+  scale_fill_manual(values=c("#a3b18a","#344e41"))+
+  theme(plot.caption = element_text(hjust = 0, size=8, face="bold"),
+        plot.title = element_text(hjust = 0.5, size=10),
+        plot.subtitle = element_text(hjust = 0.5, size=8))
+
+vlog7 = ggplot(train)+
+  geom_density(aes(x=log(sqft_living15), fill=wealthy), alpha=0.5)+
+  theme_bw()+
+  labs(title="Relationship Between The Area of the 15 \nNearest Neighboring Houses within Zipcode Catoegory",
+       x="Log of Square-ft Living Space",
+       y="Density",
+       caption="Figure 6.8",
+       fill="Zipcode Category")+
+  scale_fill_manual(labels=c('Non-Wealthy \nZipcode', 'Wealthy Zipcode'),
+                    values=c("#a3b18a","#344e41"))+
+  theme(plot.caption = element_text(hjust = 0, size=8, face="bold"),
+        plot.title = element_text(hjust = 0.5, size=8))
+
+vlog8 = ggplot(train)+
+  geom_density(aes(x=log(sqft_lot15), fill=wealthy), alpha=0.5)+
+  theme_bw()+
+  labs(title="Relationship Between The Area of the 15 \nNearest Neighboring Properties within Zipcode Catoegory",
+       x="Log of Square-ft Property",
+       y="Density",
+       caption="Figure 6.9")+
+  guides(fill="none")+
+  scale_fill_manual(values=c("#a3b18a","#344e41"))+
+  theme(plot.caption = element_text(hjust = 0, size=8, face="bold"),
+        plot.title = element_text(hjust = 0.5, size=8))
+
+gridExtra::grid.arrange(vlog6,vlog7,vlog8, ncol=2, nrow=2)
+```
+
+**Figure 6.7**  shows the proportion of houses within each zip code category by grade level. There is a clear, positive correlation between the grade level and proportion of houses in wealthier zip codes, suggesting that the houses with higher construction quality and design can be found in wealthier zip codes. This also suggests that there is a significant difference in grade level between houses in wealthier zip codes and houses in non-wealthier zip codes.
+
+**Figure 6.8** and **Figure 6.9** are density plots for the area of the nearest 15 houses and the area of the nearest 15 properties between the two zip code categories. Keep in mind that the former refers to the square-ft area of the house while the latter refers to the square-ft area of the house plus the garden and any other exterior land that belongs to the house. In **Figure 6.8**, there is a more apparent difference between the two zip code categories based on the area of the 15 nearest neighboring houses. The graph shows that houses in wealthier zip codes tend to be surrounded by other houses with more area, so there may be a significant difference between the two zip codes.
+
+However, **Figure 6.9** doesn’t seem to show too much of a difference in mean area for the 15 nearest neighboring properties. This indicates that there may or may not be a significant difference in mean area for the 15 nearest neighboring properties between the two zip code categories. 
+
+So far, based on our exploratory data analysis, the area of the property, the condition level, and the area for the 15 nearest properties seem to be insignificant variables and could be potentially dropped. In order to test the significance of the variables, a logistic regression was run on the model. 
+
+## **SECTION 7: Logistic Regression Model**
+
+In order to answer the question posed in **Section 6**, the initial model consisted of the 9 variables associated with the size of the house, condition of the house, and size of neighboring houses (refer to the list in **Section 6**). The reasoning for testing these variables is that usually bigger houses in better conditions are associated with wealthy neighborhoods. Not only that, but if the surrounding houses are bigger or the surrounding properties are bigger, we predict that the odds of that house residing in a wealthy zip code is higher. However, it is also a known trend that smaller houses in urban areas are more likely to be expensive than rural areas. So theoretically, zip codes for urban areas could be in the wealthier zip code category, but have houses that are smaller. 
+
+We tested a regression model consisting of the 9 variables using a training subset of the Kings County data, resulting in the following output (**Model 7.1**):
+
+### **Model 7.1**
+```{r}
+noprice = glm(wealthy~., family="binomial", data=train)
+summary(noprice)
+```
+
+We tested to see if this overall model was more useful over an intercept model by calculating a p-value for the model. The p-value was essentially 0, meaning that this current model was useful over the intercept-only model and we can move forward with testing and improving this full model. 
+
+From here, two different models were tested. The first model (**Model 7.2**) tested was a model that dropped the variables that we found that may be insignificant in our EDA. We did a partial test to see if we could drop the betas associated with the area of the property, the condition level, and the area for the 15 nearest properties (sqft_lot, condition, and sqft_lot15). The p-value was 1, meaning we could drop these betas and the calculated AUC for this model was 0.7628711, suggesting that this model predicts fairly well. 
+
+### **Model 7.2**
+```{r}
+## testing beta(sqft_lot, condition, sqft_lot15)
+eda = glm(wealthy~bedrooms+bathrooms+sqft_living+grade_group+floors+
+            sqft_living15,
+          family="binomial", data=train)
+gstat4 = noprice$deviance-eda$deviance
+## 1-pchisq(gstat4, 6)
+## pval: 1 ==> we can drop betas
+
+summary(eda)
+```
+
+The second model (**Model 7.3**) tested was a model that dropped the variables that were insignificant based on the individual p-values (floor, condition, and grade). Note that we kept sqft_living and sqft_lot because the p-values weren’t too bad and we predicted that at least one of these variables would become significant after testing. A partial test was conducted to see if we could drop the betas for floor, condition, and grade. The p-value was 1, meaning we could drop these betas and the calculated AUC for this model was 0.7623842, also suggesting that this model predicts fairly well.
+
+Comparing the AUC for **Model 7.2** and **Model 7.3**, we didn’t see that much of a difference, but the chosen model to move forward with is **Model 7.3**. This is due to the fact that logistic regression isn’t reliable when there is a significant amount of multicollinearity between variables. With **Model 7.3**, the multicollinearity is controlled compared to **Model 7.1** and **Model 7.2**. The final model is shown below:
+
+### **Model 7.3**
+```{r}
+## testing beta(floor, condition, grade)
+cate = glm(wealthy~bedrooms+bathrooms+sqft_living+sqft_lot+
+             sqft_living15+sqft_lot15,
+           family="binomial", data=train)
+gstat5 = noprice$deviance-cate$deviance
+## 1-pchisq(gstat5, 12)
+## pval: 1 ==> we can drop betas
+
+summary(cate)
+```
+
+What’s interesting with this final model is that it suggests that the odds of houses being in wealthier zip codes decreases for houses with fewer bedrooms if all other variables are held constant. That is contradictory to our initial belief. The same observations are made for the area of the properties and for the area of the 15 nearest properties. This model predicts that the odds of houses being in wealthier zip codes decreases for houses with smaller properties or houses that are surrounded by smaller properties. 
+
+Moving forward with **Model 7.3**, we created a ROC curve (**Figure 7.1**) and a confusion matrix (**Table 7.1**) in order to better assess and visualize the predictive ability of our current model on test data. 
+
+```{r}
+## testing model with ROC and AUC
+p_cate=predict(cate, newdata=test, type="response")
+r_cate=ROCR::prediction(p_cate, test$wealthy)
+roc_cate=ROCR::performance(r_cate, measure="tpr", x.measure="fpr")
+plot(roc_cate, main="ROC Curve for Reduced Model",
+     sub="Figure 7.1", font.sub =2)
+lines(x = c(0,1), y = c(0,1), col="red")
+```
+
+Our ROC curve visualizes how good our model is at predicting which zip code category houses reside in. This ROC curve suggests that our model is better at correctly predicting which zip code category houses reside in as opposed to just guessing randomly. The associated AUC value, which is the area under the ROC curve, was 0.7623842, which means that our model is acceptable.
+
+### **Table 7.1**
+```{r}
+cmatrix = table(test$wealthy, p_cate>0.5)
+cmatrix
+```
+
+Using **Table 7.1**, the accuracy for our model was calculated to be around 75.7%; however, the sensitivity of our model is only around 64.8%. This means that out of all the houses residing in wealthier zip codes within our testing data, our model correctly classified 64.8% of those houses to be in wealthier zip codes. The specificity of our model is around 77.5%. This means that out of all the houses residing in non-wealthier zip codes within our testing data, our model correctly classified 77.5% of those houses to be in non-wealthier zip codes.
+
+Can we predict if the house has a zip code considered one of the "20 Wealthiest Zip Codes" in King County (using size, condition, and size of neighboring houses)? Our model indicates that using the condition of the house is not a significant predictor for the odds of a house being in a wealthier zip code. However, overall, our model does a fair job at predicting which zip code category houses reside in using the size of the house and size of neighboring houses. To improve the model so that it performs better, we suggest exploring higher order terms such as interactions, curvilinear linear relationships between predictor variables and the response variable, and other variables, such as location of the house (rural vs. urban). 
+
