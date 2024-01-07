@@ -72,7 +72,7 @@ Our team investigated two primary questions related to the housing market in Kin
 Our findings provide valuable insights into predicting house prices and identifying wealthier neighborhoods in King County. The results can empower buyers and sellers with data-driven decision-making tools. Further refinement and exploration of additional factors could enhance predictive models for more accurate real-world applications.
 
 ##
-<em> For detailed code, visualizations, and additional information, please refer to the project's Jupyter Notebook and associated files. </em>
+<em> For detailed code, visualizations, and additional information, please refer to the project's R Markdown script and report. </em>
 
 
 
